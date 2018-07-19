@@ -2,7 +2,13 @@
 
 // TODO: Global variables
 
-var StringeePlugin, StringeeError, StringeeSuccess, StringeeGenerateIdentifier;
+var StringeePlugin,
+  StringeeError,
+  StringeeSuccess,
+  StringeeGenerateIdentifier,
+  StringeeGetZIndex,
+  StringeeGenerateDomHelper,
+  getPosition;
 
 StringeePlugin = "StringeePlugin";
 
@@ -17,6 +23,51 @@ StringeeSuccess = function() {
 StringeeGenerateIdentifier = function() {
   var identifier = "Stringee" + Date.now();
   return identifier;
+};
+
+StringeeGetZIndex = function(ele) {
+  var val;
+  while (ele != null) {
+    val = document.defaultView
+      .getComputedStyle(ele, null)
+      .getPropertyValue("z-index");
+    if (parseInt(val)) {
+      return val;
+    }
+    ele = ele.offsetParent;
+  }
+  return 0;
+};
+
+StringeeGenerateDomHelper = function() {
+  var div, domId;
+  domId = "StringeeVideo" + Date.now();
+  div = document.createElement("div");
+  div.setAttribute("id", domId);
+  document.body.appendChild(div);
+  return domId;
+};
+
+getPosition = function(pubDiv) {
+  var computedStyle, curleft, curtop, height, width;
+  if (!pubDiv) {
+    return {};
+  }
+  computedStyle = window.getComputedStyle ? getComputedStyle(pubDiv, null) : {};
+  width = pubDiv.offsetWidth;
+  height = pubDiv.offsetHeight;
+  curtop = pubDiv.offsetTop;
+  curleft = pubDiv.offsetLeft;
+  while ((pubDiv = pubDiv.offsetParent)) {
+    curleft += pubDiv.offsetLeft;
+    curtop += pubDiv.offsetTop;
+  }
+  return {
+    top: curtop,
+    left: curleft,
+    width: width,
+    height: height
+  };
 };
 
 // TODO: Khai báo lớp trung mà bên ngoài sẽ gọi Plugin
@@ -67,7 +118,10 @@ var StringeeClient,
 StringeeClient = (function() {
   // Hàm khởi tạo
   function StringeeClient() {
-    // this.identifier = StringeeGenerateIdentifier();
+    // Properties
+    this.userId = null;
+    this.hasConnected = false;
+
     this.didConnect = __bind(this.didConnect, this);
     this.eventReceived = __bind(this.eventReceived, this);
     Stringee.getHelper().eventing(this);
@@ -107,6 +161,9 @@ StringeeClient = (function() {
 
   StringeeClient.prototype.didConnect = function(event) {
     console.log("Da an vao plugin");
+    this.userId = event.userId;
+    this.hasConnected = true;
+
     var connectionEvent = new StringeeEvent("didConnect");
     connectionEvent.userId = event.userId;
     connectionEvent.projectId = event.projectId;
@@ -116,6 +173,8 @@ StringeeClient = (function() {
   };
 
   StringeeClient.prototype.didDisConnect = function(event) {
+    this.hasConnected = false;
+
     var connectionEvent = new StringeeEvent("didDisConnect");
     connectionEvent.userId = event.userId;
     connectionEvent.projectId = event.projectId;
@@ -125,6 +184,8 @@ StringeeClient = (function() {
   };
 
   StringeeClient.prototype.didFailWithError = function(event) {
+    this.hasConnected = false;
+
     var connectionEvent = new StringeeEvent("didFailWithError");
     connectionEvent.userId = event.userId;
     connectionEvent.code = event.code;
@@ -134,6 +195,8 @@ StringeeClient = (function() {
   };
 
   StringeeClient.prototype.requestAccessToken = function(event) {
+    this.hasConnected = false;
+
     var connectionEvent = new StringeeEvent("requestAccessToken");
     connectionEvent.userId = event.userId;
     this.dispatchEvent(connectionEvent);
@@ -143,20 +206,16 @@ StringeeClient = (function() {
   StringeeClient.prototype.incomingCall = function(event) {
     var connectionEvent = new StringeeEvent("incomingCall");
     var incCall = new StringeeCall(false, "", "", false, "", "");
-    console.log("Identifier Before " + incCall.identifier);
     incCall.identifier = event.callId;
-    console.log("Identifier After " + incCall.identifier);
+    incCall.callId = event.callId;
+    incCall.from = event.from;
+    incCall.to = event.to;
+    incCall.fromAlias = event.fromAlias;
+    incCall.toAlias = event.toAlias;
+    incCall.callType = event.callType;
+    incCall.customDataFromYourServer = event.customDataFromYourServer;
     connectionEvent.call = incCall;
 
-    // connectionEvent.userId = event.userId;
-    // connectionEvent.callId = event.callId;
-    // connectionEvent.from = event.from;
-    // connectionEvent.to = event.to;
-    // connectionEvent.fromAlias = event.fromAlias;
-    // connectionEvent.toAlias = event.toAlias;
-    // connectionEvent.callType = event.callType;
-    // connectionEvent.isVideoCall = event.isVideoCall;
-    // connectionEvent.customDataFromYourServer = event.customDataFromYourServer;
     this.dispatchEvent(connectionEvent);
     return this;
   };
@@ -184,6 +243,15 @@ StringeeCall = (function() {
     customData
   ) {
     this.identifier = StringeeGenerateIdentifier();
+
+    // Properties
+    this.callId = null;
+    this.from = null;
+    this.to = null;
+    this.fromAlias = null;
+    this.toAlias = null;
+    this.callType = null;
+    this.customDataFromYourServer = null;
 
     this.didChangeSignalingState = __bind(this.didChangeSignalingState, this);
     this.didChangeMediaState = __bind(this.didChangeMediaState, this);
@@ -217,9 +285,26 @@ StringeeCall = (function() {
       "addEvent",
       [this.identifier]
     );
-    Cordova.exec(successCallback, errorCallback, StringeePlugin, "makeCall", [
-      this.identifier
-    ]);
+
+    var weakself = this;
+    var handleSuccessCallback = function(event) {
+      weakself.callId = event.callId;
+      weakself.from = event.from;
+      weakself.to = event.to;
+      weakself.fromAlias = event.fromAlias;
+      weakself.toAlias = event.toAlias;
+      weakself.callType = event.callType;
+      weakself.customDataFromYourServer = event.customDataFromYourServer;
+      successCallback(event);
+    };
+
+    Cordova.exec(
+      handleSuccessCallback,
+      errorCallback,
+      StringeePlugin,
+      "makeCall",
+      [this.identifier]
+    );
   };
 
   StringeeCall.prototype.initAnswer = function(successCallback, errorCallback) {
@@ -336,6 +421,33 @@ StringeeCall = (function() {
       StringeePlugin,
       "enableVideo",
       [this.identifier, enable]
+    );
+  };
+
+  StringeeCall.prototype.renderVideo = function(
+    isLocal,
+    element,
+    successCallback,
+    errorCallback
+  ) {
+    var targetElement = document.getElementById(element);
+    var position = getPosition(targetElement);
+    var zIndex = StringeeGetZIndex(targetElement);
+
+    Cordova.exec(
+      successCallback,
+      errorCallback,
+      StringeePlugin,
+      "renderVideo",
+      [
+        this.identifier,
+        isLocal,
+        position.top,
+        position.left,
+        position.width,
+        position.height,
+        zIndex
+      ]
     );
   };
 

@@ -1,7 +1,7 @@
 #import <Cordova/CDV.h>
 #import <Stringee/Stringee.h>
 
-@interface StringeePlugin : CDVPlugin <StringeeConnectionDelegate, StringeeIncomingCallDelegate, StringeeCallDelegate>
+@interface StringeePlugin : CDVPlugin <StringeeConnectionDelegate, StringeeIncomingCallDelegate, StringeeCallDelegate, StringeeRemoteViewDelegate>
 
 // Common
 - (void)addEvent:(CDVInvokedUrlCommand *)command;
@@ -28,5 +28,7 @@
 - (void)setSpeakerphoneOn:(CDVInvokedUrlCommand *)command;
 - (void)switchCamera:(CDVInvokedUrlCommand *)command;
 - (void)enableVideo:(CDVInvokedUrlCommand *)command;
+
+- (void)renderVideo:(CDVInvokedUrlCommand *)command;
 
 @end

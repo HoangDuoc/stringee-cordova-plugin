@@ -25,6 +25,8 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
     StringeeClient *_client;
     NSMutableDictionary *callbackList;
     NSMutableDictionary *callList;
+    NSMutableOrderedSet *signalingEndList;
+    NSMutableOrderedSet *mediaEndList;
 }
 
 #pragma mark Common
@@ -36,6 +38,8 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
 
     callbackList = [[NSMutableDictionary alloc] init];
     callList = [[NSMutableDictionary alloc] init];
+    signalingEndList = [[NSMutableOrderedSet alloc] init];
+    mediaEndList = [[NSMutableOrderedSet alloc] init];
 }
 
 - (void)addEvent:(CDVInvokedUrlCommand*)command {
@@ -72,6 +76,7 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
 
     if (!_client || !_client.hasConnected) {
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(-1) forKey:@"code"];
         [eventData setObject:@"StringeeClient is not initialized or connected." forKey:@"message"];
         [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
         return;
@@ -83,6 +88,7 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
 
     [_client registerPushForDeviceToken:deviceToken isProduction:[isProduction boolValue] isVoip:[isVoip boolValue] completionHandler:^(BOOL status, int code, NSString *message) {
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(code) forKey:@"code"];
         [eventData setObject:message forKey:@"message"];
         [self triggerCallbackWithStatus:status withData:eventData withCallbackId:command.callbackId];
     }];
@@ -93,6 +99,7 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
 
     if (!_client || !_client.hasConnected) {
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(-1) forKey:@"code"];
         [eventData setObject:@"StringeeClient is not initialized or connected." forKey:@"message"];
         [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
         return;
@@ -102,6 +109,7 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
 
     [_client unregisterPushForDeviceToken:deviceToken completionHandler:^(BOOL status, int code, NSString *message) {
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(code) forKey:@"code"];
         [eventData setObject:message forKey:@"message"];
         [self triggerCallbackWithStatus:status withData:eventData withCallbackId:command.callbackId];
     }];
@@ -223,8 +231,17 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
         [outgoingCall makeCallWithCompletionHandler:^(BOOL status, int code, NSString *message, NSString *data) {
             NSLog(@"%@", message);
             NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+            [eventData setObject:@(code) forKey:@"code"];
             [eventData setObject:message forKey:@"message"];
             [eventData setObject:data forKey:@"customDataFromYourServer"];
+
+            [eventData setObject:outgoingCall.callId forKey:@"callId"];
+            [eventData setObject:outgoingCall.from forKey:@"from"];
+            [eventData setObject:outgoingCall.to forKey:@"to"];
+            [eventData setObject:outgoingCall.fromAlias forKey:@"fromAlias"];
+            [eventData setObject:outgoingCall.toAlias forKey:@"toAlias"];
+            [eventData setObject:@(outgoingCall.callType) forKey:@"callType"];
+
             [self triggerCallbackWithStatus:status withData:eventData withCallbackId:command.callbackId];
             if (!status) {
                 [callbackList removeObjectForKey:iden];
@@ -234,6 +251,7 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
         [callbackList removeObjectForKey:iden];
 
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(-3) forKey:@"code"];
         [eventData setObject:@"Make call failed. The call is not found." forKey:@"message"];
         [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
     }
@@ -251,12 +269,14 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
         [incomingCall initAnswerCall];
 
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(0) forKey:@"code"];
         [eventData setObject:@"Init answer call successful" forKey:@"message"];
         [self triggerCallbackWithStatus:true withData:eventData withCallbackId:command.callbackId];
     } else {
         // Khong tim duoc cuoc goi thi xoa luon callbackId
         [callbackList removeObjectForKey:iden];
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(-3) forKey:@"code"];
         [eventData setObject:@"Init answer call failed. The call is not found." forKey:@"message"];
         [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
     }
@@ -272,11 +292,13 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
         [incomingCall answerCallWithCompletionHandler:^(BOOL status, int code, NSString *message) {
             NSLog(@"%@", message);
             NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+            [eventData setObject:@(code) forKey:@"code"];
             [eventData setObject:message forKey:@"message"];
             [self triggerCallbackWithStatus:status withData:eventData withCallbackId:command.callbackId];
         }];
     } else {
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(-3) forKey:@"code"];
         [eventData setObject:@"Answer call failed. The call is not found." forKey:@"message"];
         [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
     }
@@ -292,11 +314,13 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
         [call hangupWithCompletionHandler:^(BOOL status, int code, NSString *message) {
             NSLog(@"%@", message);
             NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+            [eventData setObject:@(code) forKey:@"code"];
             [eventData setObject:message forKey:@"message"];
             [self triggerCallbackWithStatus:status withData:eventData withCallbackId:command.callbackId];
         }];
     } else {
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(-3) forKey:@"code"];
         [eventData setObject:@"Hangup call failed. The call is not found." forKey:@"message"];
         [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
     }
@@ -312,11 +336,13 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
         [call rejectWithCompletionHandler:^(BOOL status, int code, NSString *message) {
             NSLog(@"%@", message);
             NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+            [eventData setObject:@(code) forKey:@"code"];
             [eventData setObject:message forKey:@"message"];
             [self triggerCallbackWithStatus:status withData:eventData withCallbackId:command.callbackId];
         }];
     } else {
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(-3) forKey:@"code"];
         [eventData setObject:@"Reject call failed. The call is not found." forKey:@"message"];
         [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
     }
@@ -374,23 +400,29 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
 
                 [call sendDTMF:dtmfParam completionHandler:^(BOOL status, int code, NSString *message) {
                     NSString *msgParam;
+                    int codeParam;
                     if (status) {
                         msgParam = @"Send DTMF successfully";
+                        codeParam = 0;
                     } else {
                         msgParam = @"Send DTMF failed. The client is not connected to Stringee Server.";
+                        codeParam = -1;
                     }
 
                     NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+                    [eventData setObject:@(codeParam) forKey:@"code"];
                     [eventData setObject:msgParam forKey:@"message"];
                     [self triggerCallbackWithStatus:status withData:eventData withCallbackId:command.callbackId];
                 }];
             } else {
                 NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+                [eventData setObject:@(-4) forKey:@"code"];
                 [eventData setObject:@"Send DTMF failed. The dtmf is invalid." forKey:@"message"];
                 [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
             }
     } else {
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(-3) forKey:@"code"];
         [eventData setObject:@"Send DTMF failed. The call is not found." forKey:@"message"];
         [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
     }
@@ -412,24 +444,30 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
 
         if (jsonError) {
             NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+            [eventData setObject:@(-4) forKey:@"code"];
             [eventData setObject:@"Send call info failed. The call info format is invalid." forKey:@"message"];
             [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
         } else {
             [call sendCallInfo:data completionHandler:^(BOOL status, int code, NSString *message) {
                 NSString *msgParam;
+                int codeParam;
                 if (status) {
                     msgParam = @"Send call info successfully";
+                    codeParam = 0;
                 } else {
                     msgParam = @"Send call info failed. The client is not connected to Stringee Server.";
+                    codeParam = -1;
                 }
 
                 NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+                [eventData setObject:@(codeParam) forKey:@"code"];
                 [eventData setObject:msgParam forKey:@"message"];
                 [self triggerCallbackWithStatus:status withData:eventData withCallbackId:command.callbackId];
             }];
         }
     } else {
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(-3) forKey:@"code"];
         [eventData setObject:@"Send call info failed. The call is not found." forKey:@"message"];
         [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
     }
@@ -448,11 +486,14 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
                                             error:nil];
             NSString *jsonString = [[[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding] stringByReplacingOccurrencesOfString:@" " withString:@""];
             NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+            [eventData setObject:@(0) forKey:@"code"];
+            [eventData setObject:@"Success" forKey:@"message"];
             [eventData setObject:jsonString forKey:@"stats"];
             [self triggerCallbackWithStatus:true withData:eventData withCallbackId:command.callbackId];
         }];
     } else {
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(-3) forKey:@"code"];
         [eventData setObject:@"Can not get call stats. The call is not found." forKey:@"message"];
         [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
     }
@@ -467,11 +508,13 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
     if (call) {
         [call mute:[mute boolValue]];
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(0) forKey:@"code"];
         [eventData setObject:@"Success" forKey:@"message"];
         [self triggerCallbackWithStatus:true withData:eventData withCallbackId:command.callbackId];
     } else {
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
-        [eventData setObject:@"Fail" forKey:@"message"];
+        [eventData setObject:@(-3) forKey:@"code"];
+        [eventData setObject:@"Failed. The call is not found." forKey:@"message"];
         [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
     }
 }
@@ -485,11 +528,13 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
     if (call) {
         [[StringeeAudioManager instance] setLoudspeaker:[speaker boolValue]];
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(0) forKey:@"code"];
         [eventData setObject:@"Success" forKey:@"message"];
         [self triggerCallbackWithStatus:true withData:eventData withCallbackId:command.callbackId];
     } else {
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
-        [eventData setObject:@"Fail" forKey:@"message"];
+        [eventData setObject:@(-3) forKey:@"code"];
+        [eventData setObject:@"Failed. The call is not found." forKey:@"message"];
         [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
     }
 }
@@ -502,11 +547,13 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
     if (call) {
         [call switchCamera];
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(0) forKey:@"code"];
         [eventData setObject:@"Success" forKey:@"message"];
         [self triggerCallbackWithStatus:true withData:eventData withCallbackId:command.callbackId];
     } else {
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
-        [eventData setObject:@"Fail" forKey:@"message"];
+        [eventData setObject:@(-3) forKey:@"code"];
+        [eventData setObject:@"Failed. The call is not found." forKey:@"message"];
         [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
     }
 }
@@ -520,18 +567,85 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
     if (call) {
         [call enableLocalVideo:[enableVideo boolValue]];
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(0) forKey:@"code"];
         [eventData setObject:@"Success" forKey:@"message"];
         [self triggerCallbackWithStatus:true withData:eventData withCallbackId:command.callbackId];
     } else {
         NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
-        [eventData setObject:@"Fail" forKey:@"message"];
+        [eventData setObject:@(-3) forKey:@"code"];
+        [eventData setObject:@"Failed. The call is not found." forKey:@"message"];
         [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
     }
 }
 
+- (void)renderVideo:(CDVInvokedUrlCommand*)command {
+    NSString* callback = command.callbackId;
+    NSString *iden = [[command arguments] objectAtIndex:0];
+    BOOL isLocal = [[command.arguments objectAtIndex:1] boolValue];
+    int top = [[command.arguments objectAtIndex:2] intValue];
+    int left = [[command.arguments objectAtIndex:3] intValue];
+    int width = [[command.arguments objectAtIndex:4] intValue];
+    int height = [[command.arguments objectAtIndex:5] intValue];
+    int zIndex = [[command.arguments objectAtIndex:6] intValue];
 
+    StringeeCall *call = [callList objectForKey:iden];
+
+    if (call) {
+        if (isLocal) {
+            [self.webView.scrollView addSubview:call.localVideoView];
+            [call.localVideoView setFrame:CGRectMake(left, top, width, height)];
+            // Set depth location of camera view based on CSS z-index.
+            call.localVideoView.layer.zPosition = zIndex;
+        } else {
+            UIView *containRemoteView = [[UIView alloc] init];
+            [containRemoteView setBackgroundColor:[UIColor blackColor]];
+            [containRemoteView setFrame:CGRectMake(left, top, width, height)];
+            [containRemoteView addSubview:call.remoteVideoView];
+            [self.webView.scrollView addSubview:containRemoteView];
+            call.remoteVideoView.delegate = self;
+            [call.remoteVideoView setFrame:CGRectMake(left, top, width, height)];
+            // Set depth location of camera view based on CSS z-index.
+            call.remoteVideoView.layer.zPosition = zIndex;
+        }
+        NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(0) forKey:@"code"];
+        [eventData setObject:@"Success" forKey:@"message"];
+        [self triggerCallbackWithStatus:true withData:eventData withCallbackId:command.callbackId];
+    } else {
+        NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
+        [eventData setObject:@(-3) forKey:@"code"];
+        [eventData setObject:@"Failed. The call is not found." forKey:@"message"];
+        [self triggerCallbackWithStatus:false withData:eventData withCallbackId:command.callbackId];
+    }
+}
+
+#pragma mark RemoteView Delegate
+
+- (void)videoView:(StringeeRemoteVideoView *)videoView didChangeVideoSize:(CGSize)size {
+
+    // Thay đổi frame của StringeeRemoteVideoView khi kích thước video thay đổi
+    CGFloat superWidth = videoView.superview.bounds.size.width;
+    CGFloat superHeight = videoView.superview.bounds.size.height;
+    
+    CGFloat newWidth;
+    CGFloat newHeight;
+    
+    if (size.width > size.height) {
+        newWidth = superWidth;
+        newHeight = newWidth * size.height / size.width;
+        
+        [videoView setFrame:CGRectMake(0, (superHeight - newHeight) / 2, newWidth, newHeight)];
+        
+    } else {
+        newHeight = superHeight;
+        newWidth = newHeight * size.width / size.height;
+        
+        [videoView setFrame:CGRectMake((superWidth - newWidth) / 2, 0, newWidth, newHeight)];
+    }
+}
 
 #pragma mark Call Delegate
+
 - (void)didChangeSignalingState:(StringeeCall *)stringeeCall signalingState:(SignalingState)signalingState reason:(NSString *)reason sipCode:(int)sipCode sipReason:(NSString *)sipReason {
     
     NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
@@ -542,6 +656,12 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
     [eventData setObject:sipReason forKey:@"sipReason"];
 
     [self triggerEventForCall:stringeeCall withType:didChangeSignalingState withData:eventData];
+
+    if (signalingState == SignalingStateBusy || signalingState == SignalingStateEnded) {
+        [signalingEndList addObject:stringeeCall.callId];
+    }
+
+    [self checkAndReleaseCall:stringeeCall];
 }
 
 - (void)didChangeMediaState:(StringeeCall *)stringeeCall mediaState:(MediaState)mediaState {
@@ -552,10 +672,12 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
         case MediaStateConnected:
             [eventData setObject:@(0) forKey:@"code"];
             [eventData setObject:@"Connected" forKey:@"description"];
+            [mediaEndList removeObject:stringeeCall.callId];
             break;
         case MediaStateDisconnected:
             [eventData setObject:@(1) forKey:@"code"];
             [eventData setObject:@"Disconnected" forKey:@"description"];
+            [mediaEndList addObject:stringeeCall.callId];
             break;
         default:
             break;
@@ -563,21 +685,25 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
 
     [self triggerEventForCall:stringeeCall withType:didChangeMediaState withData:eventData];
 
+    [self checkAndReleaseCall:stringeeCall];
 }
 
 - (void)didReceiveLocalStream:(StringeeCall *)stringeeCall {
+    NSLog(@"didReceiveLocalStream");
     NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
     [eventData setObject:stringeeCall.callId forKey:@"callId"];
     [self triggerEventForCall:stringeeCall withType:didReceiveLocalStream withData:eventData];
 }
 
 - (void)didReceiveRemoteStream:(StringeeCall *)stringeeCall {
+    NSLog(@"didReceiveRemoteStream");
     NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
     [eventData setObject:stringeeCall.callId forKey:@"callId"];
     [self triggerEventForCall:stringeeCall withType:didReceiveRemoteStream withData:eventData];
 }
 
 - (void)didReceiveDtmfDigit:(StringeeCall *)stringeeCall callDTMF:(CallDTMF)callDTMF {
+    NSLog(@"didReceiveDtmfDigit");
     NSString * digit = @"";
     if ((long)callDTMF <= 9) {
         digit = [NSString stringWithFormat:@"%ld", (long)callDTMF];
@@ -595,6 +721,7 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
 }
 
 - (void)didReceiveCallInfo:(StringeeCall *)stringeeCall info:(NSDictionary *)info {
+    NSLog(@"didReceiveCallInfo");
     NSData *jsonData = [NSJSONSerialization dataWithJSONObject:info
                                             options:NSJSONWritingPrettyPrinted
                                             error:nil];
@@ -607,6 +734,7 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
 }
 
 - (void)didHandleOnAnotherDevice:(StringeeCall *)stringeeCall signalingState:(SignalingState)signalingState reason:(NSString *)reason sipCode:(int)sipCode sipReason:(NSString *)sipReason {
+    NSLog(@"didHandleOnAnotherDevice");
     NSMutableDictionary* eventData = [[NSMutableDictionary alloc] init];
     [eventData setObject:stringeeCall.callId forKey:@"callId"];
     [eventData setObject:@(signalingState) forKey:@"code"];
@@ -653,6 +781,18 @@ static NSString *didHandleOnAnotherDevice   = @"didHandleOnAnotherDevice";
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:data];
     }
     [self.commandDelegate sendPluginResult:pluginResult callbackId:callbackId];
+}
+
+- (void)checkAndReleaseCall:(StringeeCall *)stringeeCall {
+    if ([signalingEndList containsObject:stringeeCall.callId] && [mediaEndList containsObject:stringeeCall.callId]) {
+        [signalingEndList removeObject:stringeeCall.callId];
+        [mediaEndList removeObject:stringeeCall.callId];
+        NSString *key = [[callList allKeysForObject:stringeeCall] firstObject];
+        if (key) {
+            [callbackList removeObjectForKey:key];
+            [callList removeObjectForKey:key];
+        }
+    }
 }
 
 
